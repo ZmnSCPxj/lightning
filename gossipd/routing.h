@@ -14,6 +14,7 @@
 #include <wire/gen_onion_wire.h>
 #include <wire/wire.h>
 
+struct dhcache;
 struct routing_state;
 
 struct half_chan {
@@ -125,6 +126,9 @@ struct node {
 			struct amount_msat risk;
 		} dijkstra;
 	} s;
+
+	/* Used by dhcache. */
+	u32 dhcache_distance[2];
 };
 
 const struct node_id *node_map_keyof_node(const struct node *n);
@@ -254,6 +258,9 @@ struct routing_state {
 	/* Override local time for gossip messages */
 	struct timeabs *gossip_time;
 #endif
+
+	/* Cache of differential-heuristic data.  */
+	struct dhcache *dhcache;
 };
 
 static inline struct chan *

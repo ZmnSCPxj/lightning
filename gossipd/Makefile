@@ -12,8 +12,10 @@ LIGHTNINGD_GOSSIP_CONTROL_SRC := gossipd/gen_gossip_wire.c
 LIGHTNINGD_GOSSIP_CONTROL_OBJS := $(LIGHTNINGD_GOSSIP_CONTROL_SRC:.c=.o)
 
 # gossipd needs these:
-LIGHTNINGD_GOSSIP_HEADERS_WSRC := gossipd/gen_gossip_wire.h \
-	gossipd/gen_gossip_peerd_wire.h \
+LIGHTNINGD_GOSSIP_HEADERS_WSRC := \
+	gossipd/dhcache.h				\
+	gossipd/gen_gossip_wire.h			\
+	gossipd/gen_gossip_peerd_wire.h			\
 	gossipd/gen_gossip_store.h			\
 	gossipd/gossip_store.h				\
 	gossipd/priority_queue.h			\

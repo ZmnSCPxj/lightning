@@ -13,6 +13,7 @@
 #include <common/type_to_string.h>
 #include <common/wire_error.h>
 #include <common/wireaddr.h>
+#include <gossipd/dhcache.h>
 #include <gossipd/gen_gossip_peerd_wire.h>
 #include <gossipd/gen_gossip_store.h>
 #include <gossipd/gen_gossip_wire.h>
@@ -199,6 +200,7 @@ struct routing_state *new_routing_state(const tal_t *ctx,
 	} else
 		rstate->gossip_time = NULL;
 #endif
+	rstate->dhcache = dhcache_new(rstate);
 	tal_add_destructor(rstate, destroy_routing_state);
 
 	return rstate;
@@ -254,6 +256,7 @@ static struct node *new_node(struct routing_state *rstate,
 	memset(n->chans.arr, 0, sizeof(n->chans.arr));
 	broadcastable_init(&n->bcast);
 	node_map_add(rstate->nodes, n);
+	dhcache_node_init(n);
 	tal_add_destructor2(n, destroy_node, rstate);
 
 	return n;

@@ -55,6 +55,35 @@ def test_connect(node_factory):
         l1.rpc.connect('032cf15d1ad9c4a08d26eab1918f732d8ef8fdc6abb9640bf3db174372c491304e', 'localhost', l2.port)
 
 
+def test_multiconnect(node_factory):
+    l1, l2, l3 = node_factory.get_nodes(3)
+    lfeatures = expected_peer_features()
+
+    ret = l1.rpc.multiconnect(["{}@localhost:{}".format(l2.info['id'], l2.port),
+                               "{}@localhost:{}".format(l3.info['id'], l3.port)])
+
+    assert ret['id'] == [l2.info['id'], l3.info['id']]
+    assert ret["features"] == [lfeatures, lfeatures]
+
+    assert len(l1.rpc.listpeers()["peers"]) == 2
+    assert len(l2.rpc.listpeers()["peers"]) == 1
+    assert len(l3.rpc.listpeers()["peers"]) == 1
+
+
+def test_multiconnect_fail(node_factory):
+    l1, l2, l3, l4 = node_factory.get_nodes(4)
+
+    with pytest.raises(RpcError):
+        # Two connects will succeed but one will fail.
+        # We specifically fail the middle connect attempt
+        # so we can test behavior of sparks getting
+        # cancelled both before and after the command
+        # is completed (in this case, failed).
+        l1.rpc.multiconnect(["{}@localhost:{}".format(l2.info['id'], l2.port),
+                             "{}@localhost:{}".format(l3.info['id'], 1),
+                             "{}@localhost:{}".format(l4.info['id'], l4.port)])
+
+
 def test_connect_standard_addr(node_factory):
     """Test standard node@host:port address
     """

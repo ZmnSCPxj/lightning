@@ -846,6 +846,18 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("listsendpays", payload)
 
+    def multiconnect(self, peer_id, host=None, port=None, **kwargs):
+        """
+        Connect to multiple {peer_id}.
+        """
+        payload = {
+            "id": peer_id,
+            "host": host,
+            "port": port
+        }
+        payload.update({k: v for k, v in kwargs.items()})
+        return self.call("multiconnect", payload)
+
     def newaddr(self, addresstype=None):
         """Get a new address of type {addresstype} of the internal wallet.
         """

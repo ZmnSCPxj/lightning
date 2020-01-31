@@ -166,6 +166,7 @@ jsonrpc_request_start_(struct plugin *plugin, struct command *cmd,
 	out->cb = cb;
 	out->errcb = errcb;
 	out->arg = arg;
+	out->cancelled = false;
 	uintmap_add(&plugin->out_reqs, out->id, out);
 
 	/* The command can be command_complete'd even while

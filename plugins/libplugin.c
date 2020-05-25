@@ -10,6 +10,7 @@
 #include <errno.h>
 #include <poll.h>
 #include <plugins/libplugin.h>
+#include <plugins/libplugin_spark.h>
 #include <stdarg.h>
 #include <string.h>
 #include <sys/socket.h>
@@ -115,6 +116,35 @@ static void ld_rpc_send(struct plugin *plugin, struct json_stream *stream)
 
 /* FIXME: Move lightningd/jsonrpc to common/ ? */
 
+static
+void destroy_command_cancel_out_req(struct command *cmd, struct out_req *out)
+{
+	out->cancelled = true;
+}
+static
+void destroy_out_req(struct out_req *out)
+{
+	struct command *cmd;
+	bool res;
+
+	/* The request can only be cancelled if the
+	command was freed already, in which case
+	we do not have any destructor on the command
+	that needs to be removed since there is no
+	command anymore.
+	*/
+	if (out->cancelled)
+		return;
+
+	/* Since the out_req will be freed soon, make sure
+	we remove the destructor2 from the command, else
+	it will attempt to access the freed out_req.
+	*/
+	cmd = out->cmd;
+	res = tal_del_destructor2(cmd, &destroy_command_cancel_out_req, out);
+	assert(res);
+}
+
 struct out_req *
 jsonrpc_request_start_(struct plugin *plugin, struct command *cmd,
 		       const char *method,
@@ -137,6 +167,15 @@ jsonrpc_request_start_(struct plugin *plugin, struct command *cmd,
 	out->errcb = errcb;
 	out->arg = arg;
 	uintmap_add(&plugin->out_reqs, out->id, out);
+
+	/* The command can be command_complete'd even while
+	we are blocked on this outgoing request, such as by a
+	parallel spark.
+	*/
+	if (cmd) {
+		tal_add_destructor(out, &destroy_out_req);
+		tal_add_destructor2(cmd, &destroy_command_cancel_out_req, out);
+	}
 
 	out->js = new_json_stream(NULL, cmd, NULL);
 	json_object_start(out->js, NULL);
@@ -533,6 +572,10 @@ static void handle_rpc_reply(struct plugin *plugin, const jsmntok_t *toks)
 	/* We want to free this if callback doesn't. */
 	tal_steal(tmpctx, out);
 	uintmap_del(&plugin->out_reqs, out->id);
+
+	/* Request was already cancelled, ignore commnd result.  */
+	if (out->cancelled)
+		return;
 
 	contenttok = json_get_member(plugin->rpc_buffer, toks, "error");
 	if (contenttok)
@@ -1265,4 +1308,222 @@ void plugin_main(char *argv[],
 	}
 
 	tal_free(plugin);
+}
+
+/*-----------------------------------------------------------------------------
+Sparks
+-----------------------------------------------------------------------------*/
+
+struct plugin_spark_completion {
+	/* Nothing.  Just a tag.  */
+};
+
+struct plugin_spark {
+	struct plugin_spark_completion completion;
+	struct command *cmd;
+	bool completed;
+
+	struct command_result *(*waiter)(struct command *cmd,
+					 void *arg);
+	void *waiter_arg;
+};
+
+/* Adaptor for timer.  */
+struct plugin_spark_timer_adaptor {
+	struct command_result *(*cb)(struct command *cmd,
+				     void *arg);
+	struct command *cmd;
+	void *arg;
+};
+static void
+plugin_spark_timer_adaptor_exec(struct plugin_spark_timer_adaptor *adaptor)
+{
+	struct command_result *res;
+
+	/* Clean up timer.  */
+	(void) timer_complete(adaptor->cmd->plugin);
+
+	tal_steal(tmpctx, adaptor);
+	res = adaptor->cb(adaptor->cmd, adaptor->arg);
+	assert(res == &pending || res == &complete);
+}
+static
+struct command_result *
+plugin_spark_defer(struct command *cmd,
+		   struct command_result *(*cb)(struct command *cmd,
+						void *arg),
+		   void *arg)
+{
+	struct plugin_spark_timer_adaptor *adaptor;
+	struct plugin_timer *timer;
+
+	adaptor = tal(cmd, struct plugin_spark_timer_adaptor);
+	adaptor->cmd = cmd;
+	adaptor->cb = cb;
+	adaptor->arg = arg;
+
+	timer = plugin_timer(cmd->plugin, time_from_sec(0),
+			     &plugin_spark_timer_adaptor_exec,
+			     adaptor);
+	tal_steal(adaptor, timer);
+
+	return command_still_pending(cmd);
+}
+
+/* Core wait function.  */
+struct command_result *
+plugin_wait_spark_(struct command *cmd,
+		   struct plugin_spark **pspark,
+		   struct command_result *(*cb)(struct command *cmd,
+						void *arg),
+		   void *arg)
+{
+	/* Move responsibility for the spark to this function.  */
+	struct plugin_spark *spark = *pspark;
+	*pspark = NULL;
+
+	assert(cmd != NULL);
+	if (spark)
+		assert(spark->cmd == cmd);
+
+	if (!spark || spark->completed) {
+		tal_free(spark);
+		/* Schedule as timer to rewind the C stack.  */
+		return plugin_spark_defer(cmd, cb, arg);
+	}
+
+	assert(!spark->waiter);
+
+	spark->waiter = cb;
+	spark->waiter_arg = arg;
+
+	return command_still_pending(cmd);
+}
+
+/* Arrayed wait function.  */
+struct plugin_data_wait_all_sparks {
+	size_t num_sparks;
+	size_t i;
+	struct plugin_spark **pspark;
+	struct command_result *(*cb)(struct command *cmd,
+				     void *arg);
+	void *arg;
+};
+/* Function used by plugin_wait_all_sparks_ to resume
+after waiting for one spark.
+*/
+static
+struct command_result *plugin_wait_all_loop(struct command *cmd,
+					    struct plugin_data_wait_all_sparks *data)
+{
+	if (data->i == data->num_sparks) {
+		tal_steal(tmpctx, data);
+		/* Schedule as timer, in order to rewind the C stack.  */
+		return plugin_spark_defer(cmd, data->cb, data->arg);
+	}
+
+	size_t i = data->i;
+	++data->i;
+
+	return plugin_wait_spark(cmd, &data->pspark[i],
+				 &plugin_wait_all_loop, data);
+}
+
+struct command_result *
+plugin_wait_all_sparks_(struct command *cmd,
+			size_t num_sparks,
+			struct plugin_spark **pspark,
+ 			struct command_result *(*cb)(struct command *cmd,
+						     void *arg),
+			void *arg)
+{
+	struct plugin_data_wait_all_sparks *data;
+
+	assert(cmd);
+	assert(pspark);
+
+	data = tal(cmd, struct plugin_data_wait_all_sparks);
+	data->num_sparks = num_sparks;
+	data->i = 0;
+	data->pspark = pspark;
+	data->cb = cb;
+	data->arg = arg;
+
+	return plugin_wait_all_loop(cmd, data);
+}
+
+/*---------------------------------------------------------------------------*/
+
+struct plugin_data_start_spark {
+	struct command_result *(*cb)(struct command *,
+				     struct plugin_spark_completion *,
+				     void *arg);
+	struct plugin_spark_completion *spark_completion;
+	void *arg;
+};
+
+/* Actually performs the starting of the spark.  */
+static struct command_result *
+plugin_start_spark_exec(struct command *cmd,
+			void *vdata)
+{
+	struct plugin_data_start_spark *data;
+	data = (struct plugin_data_start_spark *) vdata;
+	/* Schedule data for deletion.  */
+	tal_steal(tmpctx, data);
+	return data->cb(cmd, data->spark_completion, data->arg);
+}
+
+struct plugin_spark *
+plugin_start_spark_(struct command *cmd,
+		    struct command_result *(*cb)(struct command *,
+						 struct plugin_spark_completion *,
+						 void *arg),
+		    void *arg)
+{
+	struct plugin_spark *spark;
+	struct plugin_data_start_spark *data;
+
+	assert(cmd);
+
+	spark = tal(cmd, struct plugin_spark);
+	spark->cmd = cmd;
+	spark->completed = false;
+	spark->waiter = NULL;
+	spark->waiter_arg = NULL;
+
+	data = tal(spark, struct plugin_data_start_spark);
+	data->cb = cb;
+	data->spark_completion = &spark->completion;
+	data->arg = arg;
+
+	/* Schedule the spark to start executing.  */
+	(void) plugin_spark_defer(cmd,
+				  &plugin_start_spark_exec,
+				  (void*) data);
+
+	return spark;
+}
+
+struct command_result *
+plugin_spark_complete(struct command *cmd,
+		      struct plugin_spark_completion *completion)
+{
+	struct plugin_spark *spark;
+
+	assert(cmd);
+	assert(completion);
+	spark = container_of(completion, struct plugin_spark, completion);
+	assert(spark->cmd == cmd);
+	assert(!spark->completed);
+
+	if (spark->waiter) {
+		tal_steal(tmpctx, spark);
+		return plugin_spark_defer(cmd,
+					  spark->waiter, spark->waiter_arg);
+	}
+
+	spark->completed = true;
+
+	return command_still_pending(cmd);
 }

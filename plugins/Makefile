@@ -14,7 +14,7 @@ PLUGIN_KEYSEND_SRC := plugins/keysend.c
 PLUGIN_KEYSEND_OBJS := $(PLUGIN_KEYSEND_SRC:.c=.o)
 
 PLUGIN_LIB_SRC := plugins/libplugin.c
-PLUGIN_LIB_HEADER := plugins/libplugin.h
+PLUGIN_LIB_HEADER := plugins/libplugin.h plugins/libplugin_spark.h
 PLUGIN_LIB_OBJS := $(PLUGIN_LIB_SRC:.c=.o)
 
 PLUGIN_COMMON_OBJS :=				\

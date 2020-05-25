@@ -46,6 +46,16 @@ struct out_req {
 					const jsmntok_t *error,
 					void *arg);
 	void *arg;
+
+	/* Whether this command request was cancelled due to the
+	incoming command completing before the request finished,
+	such as by a parallel spark of the incoming command
+	completing that command.
+
+	This is internal to the libplugin and should not be used
+	by plugins, otherwise BAD THINGS WILL HAPPEN.
+	*/
+	bool cancelled;
 };
 
 struct command {

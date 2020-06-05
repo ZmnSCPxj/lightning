@@ -54,6 +54,7 @@ c-lightning Documentation
    lightning-listpays <lightning-listpays.7.md>
    lightning-listpeers <lightning-listpeers.7.md>
    lightning-listsendpays <lightning-listsendpays.7.md>
+   lightning-multifundchannel <lightning-multifundchannel.7.md>
    lightning-newaddr <lightning-newaddr.7.md>
    lightning-pay <lightning-pay.7.md>
    lightning-plugin <lightning-plugin.7.md>

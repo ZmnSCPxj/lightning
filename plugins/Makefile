@@ -22,6 +22,10 @@ PLUGIN_MULTICONNECT_SRC := plugins/multiconnect.c
 PLUGIN_MULTICONNECT_HEADER := plugins/multiconnect.h
 PLUGIN_MULTICONNECT_OBJS := $(PLUGIN_MULTICONNECT_SRC:.c=.o)
 
+PLUGIN_MULTIFUNDCHANNEL_SRC := plugins/multifundchannel.c
+PLUGIN_MULTIFUNDCHANNEL_HEADER := plugins/multifundchannel.h
+PLUGIN_MULTIFUNDCHANNEL_OBJS := $(PLUGIN_MULTIFUNDCHANNEL_SRC:.c=.o)
+
 PLUGIN_COMMON_OBJS :=				\
 	bitcoin/base58.o			\
 	bitcoin/privkey.o			\
@@ -70,12 +74,17 @@ plugins/bcli: bitcoin/chainparams.o $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLU
 
 plugins/keysend: bitcoin/chainparams.o wire/tlvstream.o wire/gen_onion_wire.o $(PLUGIN_KEYSEND_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 
-plugins/multiconnect: bitcoin/chainparams.o $(PLUGIN_MULTICONNECT_OBJS) $(PLUGIN_MULTICONNECT_HEADER) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
+plugins/multiconnect: bitcoin/chainparams.o $(PLUGIN_MULTICONNECT_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 
-$(PLUGIN_PAY_OBJS) $(PLUGIN_AUTOCLEAN_OBJS) $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_MULTICONNECT_OBJS): $(PLUGIN_LIB_HEADER) wire/gen_onion_wire.h
+plugins/multifundchannel: bitcoin/chainparams.o common/addr.o $(PLUGIN_MULTIFUNDCHANNEL_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
+
+$(PLUGIN_PAY_OBJS) $(PLUGIN_AUTOCLEAN_OBJS) $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_MULTICONNECT_OBJS) $(PLUGIN_MULTIFUNDCHANNEL_OBJS): $(PLUGIN_LIB_HEADER) wire/gen_onion_wire.h
+
+$(PLUGIN_MULTICONNECT_OBJS): $(PLUGIN_MULTICONNECT_HEADER)
+
 
 # Make sure these depend on everything.
-ALL_PROGRAMS += plugins/pay plugins/autoclean plugins/fundchannel plugins/bcli plugins/keysend plugins/multiconnect
+ALL_PROGRAMS += plugins/pay plugins/autoclean plugins/fundchannel plugins/bcli plugins/keysend plugins/multiconnect plugins/multifundchannel
 ALL_OBJS += $(PLUGIN_PAY_OBJS) $(PLUGIN_AUTOCLEAN_OBJS) $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_BCLI_OBJS) $(PLUGIN_KEYSEND_OBJS) $(PLUGIN_MULTICONNECT_OBJS) $(PLUGIN_LIB_OBJS)
 
 check-source: $(PLUGIN_PAY_SRC:%=check-src-include-order/%) $(PLUGIN_AUTOCLEAN_SRC:%=check-src-include-order/%) $(PLUGIN_FUNDCHANNEL_SRC:%=check-src-include-order/%) $(PLUGIN_BCLI_SRC:%=check-src-include-order/%)

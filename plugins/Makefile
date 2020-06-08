@@ -64,7 +64,7 @@ plugins/bcli: bitcoin/chainparams.o $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLU
 
 plugins/keysend: bitcoin/chainparams.o wire/tlvstream.o wire/gen_onion_wire.o $(PLUGIN_KEYSEND_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 
-$(PLUGIN_PAY_OBJS) $(PLUGIN_AUTOCLEAN_OBJS) $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS): $(PLUGIN_LIB_HEADER)
+$(PLUGIN_PAY_OBJS) $(PLUGIN_AUTOCLEAN_OBJS) $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS): $(PLUGIN_LIB_HEADER) wire/gen_onion_wire.h
 
 # Make sure these depend on everything.
 ALL_PROGRAMS += plugins/pay plugins/autoclean plugins/fundchannel plugins/bcli plugins/keysend

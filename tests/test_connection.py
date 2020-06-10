@@ -1306,25 +1306,51 @@ def test_multifunding_one(node_factory, bitcoind):
         l1.rpc.pay(inv)
 
 
+@unittest.skipIf(not DEVELOPER, "disconnect=... and --dev-no-reconnect needs DEVELOPER=1")
+def test_multifunding_disconnect_accept_channel_resilience(node_factory):
+    disconnect = ["-WIRE_ACCEPT_CHANNEL"]
+    # We set may_reconnect=True, but do not want
+    # l2 to actually reconnect by itself.
+    l2options = dict()
+    l2options["dev-no-reconnect"] = None
+    l1 = node_factory.get_node()
+    l2 = node_factory.get_node(disconnect=disconnect,
+                               may_reconnect=True,
+                               options=l2options)
+    l3 = node_factory.get_node()
+
+    l1.fundwallet(2000000)
+
+    # Will still succeed because multifundchannel
+    # attempts to reconnect once even if the remote
+    # disconnects during WIRE_ACCEPT_CHANNEL.
+    destinations = [{"id": "{}@localhost:{}".format(l2.info["id"], l2.port),
+                     "amount": 50000},
+                    {"id": "{}@localhost:{}".format(l3.info["id"], l3.port),
+                     "amount": 50000}]
+    l1.rpc.multifundchannel(destinations)
+
+
 @unittest.skipIf(not DEVELOPER, "disconnect=... needs DEVELOPER=1")
 def test_multifunding_disconnect(node_factory):
     '''
     Test disconnection during multifundchannel
     '''
-    # TODO: Note that -WIRE_FUNDING_SIGNED does not
-    # work.
-    # See test_disconnect_half_signed.
-    # If disconnected when the peer believes it sent
-    # WIRE_FUNDING_SIGNED but before we actually
-    # receive it, the peer continues to monitor our
-    # funding tx, but we have forgotten it and will
-    # never send it.
-    disconnects = ["-WIRE_ACCEPT_CHANNEL",
-                   "@WIRE_ACCEPT_CHANNEL",
-                   "+WIRE_ACCEPT_CHANNEL",
-                   "-WIRE_FUNDING_SIGNED"]
+    # Disconnections before or during WIRE_ACCEPT_CHANNEL
+    # will be auto-handled by multifundchannel and the
+    # multifundchannel will continue.
+    disconnects = ["+WIRE_ACCEPT_CHANNEL",
+                   "-WIRE_FUNDING_SIGNED",
+                   "@WIRE_FUNDING_SIGNED"]
+    # We set may_reconnect=True, but do not want
+    # l2 to actually reconnect by itself.
+    l2options = dict()
+    if DEVELOPER:
+        l2options["dev-no-reconnect"] = None
     l1 = node_factory.get_node()
-    l2 = node_factory.get_node(disconnect=disconnects)
+    l2 = node_factory.get_node(disconnect=disconnects,
+                               may_reconnect=True,
+                               options=l2options)
     l3 = node_factory.get_node()
 
     l1.fundwallet(2000000)
@@ -1339,18 +1365,6 @@ def test_multifunding_disconnect(node_factory):
     for d in disconnects:
         with pytest.raises(RpcError):
             l1.rpc.multifundchannel(destinations)
-
-    # TODO: failing at the fundchannel_continue phase
-    # (-WIRE_FUNDING_SIGNED @WIRE_FUNDING_SIGNED)
-    # leaves the peer (l2 in this case) in a state
-    # where it is waiting for an incoming channel,
-    # even though we no longer have a channel going to
-    # that peer.
-    # Reconnecting with the peer will clear up that
-    # confusion, but we still need to implement that
-    # in our multifundchannel.
-    destinations = [{"id": '{}@localhost:{}'.format(l3.info['id'], l3.port),
-                     "amount": 50000}]
 
     # This should succeed.
     l1.rpc.multifundchannel(destinations)

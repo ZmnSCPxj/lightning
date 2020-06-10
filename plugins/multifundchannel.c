@@ -41,16 +41,24 @@ struct multifundchannel_destination {
 	struct multifundchannel_command *mfc;
 
 	/* ID for this destination.
-	Prior to connecting this is the raw string from the
-	arguments, afterwards it is just the peer ID in
-	string form.
+	This is loaded afer the initial multiconnect, and
+	is just the peer ID in string form.
 	*/
 	const char *id;
 	/* The features this destination has.  */
 	const u8 *their_features;
+	/* The raw argument ID from the parameters, including
+	any connection hints the user might have provided.
+	*/
+	const char *id_with_hint;
 
 	/* Whether we have performed `fundchannel_start`.  */
 	enum multifundchannel_start fundchannel_start_state;
+
+	/* Whether we have tried reconnecting if `fundchannel_start`
+	returned FUNDING_PEER_NOT_CONNECTED or FUNDING_PEER_UNKNOWN.
+	*/
+	bool tried_reconnecting;
 
 	/* The placeholder address of this destination
 	used during the initial txprepare dryrun.
@@ -437,7 +445,7 @@ create_destinations_array(struct multifundchannel_command *mfc,
 		dest = &(*destinations)[i];
 
 		if (!param(mfc->cmd, buf, json_dest,
-			   p_req("id", param_string, &dest->id),
+			   p_req("id", param_string, &dest->id_with_hint),
 			   p_req("amount", param_sat_or_all, &amount),
 			   p_opt_def("announce", param_bool, &announce, true),
 			   p_opt_def("push_msat", param_msat, &push_msat,
@@ -445,9 +453,11 @@ create_destinations_array(struct multifundchannel_command *mfc,
 			   NULL))
 			return command_param_failed();
 
+		dest->id = NULL;
 		dest->mfc = mfc;
 		dest->their_features = NULL;
 		dest->fundchannel_start_state = multifundchannel_start_not_yet;
+		dest->tried_reconnecting = false;
 		dest->placeholder_addr_str = NULL;
 		dest->funding_script = NULL;
 		dest->funding_addr = NULL;
@@ -543,7 +553,8 @@ perform_multiconnect(struct multifundchannel_command *mfc)
 				    mfc);
 	json_array_start(req->js, "id");
 	for (i = 0; i < tal_count(mfc->destinations); ++i)
-		json_add_string(req->js, NULL, mfc->destinations[i].id);
+		json_add_string(req->js, NULL,
+				mfc->destinations[i].id_with_hint);
 	json_array_end(req->js);
 
 	return send_outreq(mfc->cmd->plugin, req);
@@ -975,6 +986,8 @@ fundchannel_start_ok(struct command *cmd,
 	return plugin_spark_complete(cmd, spark);
 }
 static struct command_result *
+reconnect_then_restart(struct multifundchannel_destination *dest);
+static struct command_result *
 fundchannel_start_err(struct command *cmd,
 		      const char *buf,
 		      const jsmntok_t *error,
@@ -983,10 +996,81 @@ fundchannel_start_err(struct command *cmd,
 	struct multifundchannel_command *mfc = dest->mfc;
 	struct plugin_spark_completion *spark;
 
+	const jsmntok_t *code_tok;
+	errcode_t code;
+
 	plugin_log(mfc->cmd->plugin, LOG_DBG,
 		   "mfc %p, dest %p: failed! fundchannel_start %s: %.*s.",
 		   mfc, dest, dest->id,
 		   error->end - error->start, buf + error->start);
+
+	/* Save the error.  */
+	dest->error = json_strdup(dest->mfc, buf, error);
+
+	/* What was the exact error code?  */
+	code_tok = json_get_member(buf, error, "code");
+	if (!code_tok)
+		plugin_err(cmd->plugin,
+			   "Error from fundchannel_start has no 'code'?? "
+			   "%.*s",
+			   error->end - error->start, buf + error->start);
+	if (!json_to_errcode(buf, code_tok, &code)) 
+		plugin_err(cmd->plugin,
+			   "Unable to parse errcode from fundchannel_start?? "
+			   "%.*s",
+			   code_tok->end - code_tok->start,
+			   buf + code_tok->start);
+
+	if ((code == FUNDING_UNKNOWN_PEER
+	  || code == FUNDING_PEER_NOT_CONNECTED)) {
+		/*~ Why do we try reconnecting at this point?
+
+		It is possible that a previous multifundchannel
+		ended up in a state where the remote sent the
+		`funding_signed`, but we failed to receive it,
+		because network.
+		In that case, we would fail the channel funding
+		and not broadcast the tx.
+		However, the peer would believe that the
+		channel might still be in play, and would
+		remember the channel even though we forget it.
+
+		Fortunately, if we get reconnected to the peer,
+		when the peer brings up the old channel (that
+		we have not continued funding and is therefore
+		never gonna exist), we tell them that channel
+		does not exist and they can forget it as well.
+		We do this by sending an `error` message on
+		that (forgotten by us, remembered by them) channel.
+
+		Just as fortuitously, at the start of the
+		multifundchannel process we connect to all the
+		peers we want to channel to.
+
+		*Un*fortunately, the best Lightning Network Node
+		implementation ever, C-lightning, handles `error`
+		messages by disconnecting.
+
+		This means that after we connect to the peer,
+		the peer brings up a previous failed multifundchannel
+		attempt, we `error` them to tell them to forget it
+		(cuz we have a new multifundchannel right now),
+		then they forget it but also disconnect from us
+		out of disappointment or something.
+
+		So we might get disconnected before or during
+		the `fundchannel_start`.
+		In that case, we should make an effort to
+		retry connecting again, with the peer now in a
+		"fresh" state where it no longer remembers a
+		previous failed multifundchannel.
+		*/
+		if (!dest->tried_reconnecting) {
+			dest->tried_reconnecting = true;
+
+			return reconnect_then_restart(dest);
+		}
+	}
 
 	/*
 	You might be wondering why we do not just use
@@ -1001,7 +1085,73 @@ fundchannel_start_err(struct command *cmd,
 	*/
 
 	dest->fundchannel_start_state = multifundchannel_start_failed;
-	dest->error = json_strdup(dest->mfc, buf, error);
+
+	spark = dest->spark;
+	dest->spark = NULL;
+	return plugin_spark_complete(cmd, spark);
+}
+static struct command_result *
+reconnect_then_restart_ok(struct command *cmd,
+			  const char *buf,
+			  const jsmntok_t *result,
+			  struct multifundchannel_destination *dest);
+static struct command_result *
+reconnect_then_restart_err(struct command *cmd,
+			   const char *buf,
+			   const jsmntok_t *result,
+			   struct multifundchannel_destination *dest);
+static struct command_result *
+reconnect_then_restart(struct multifundchannel_destination *dest)
+{
+	struct multifundchannel_command *mfc = dest->mfc;
+	struct out_req *req;
+
+	plugin_log(mfc->cmd->plugin, LOG_DBG,
+		   "mfc %p, dest %p: again connect %s.",
+		   mfc, dest, dest->id);
+
+	req = jsonrpc_request_start(mfc->cmd->plugin,
+				    mfc->cmd,
+				    "connect",
+				    &reconnect_then_restart_ok,
+				    &reconnect_then_restart_err,
+				    dest);
+
+	json_add_string(req->js, "id", dest->id_with_hint);
+
+	return send_outreq(mfc->cmd->plugin, req);
+}
+static struct command_result *
+reconnect_then_restart_ok(struct command *cmd,
+			  const char *buf,
+			  const jsmntok_t *result,
+			  struct multifundchannel_destination *dest)
+{
+	struct multifundchannel_command *mfc = dest->mfc;
+
+	plugin_log(mfc->cmd->plugin, LOG_DBG,
+		   "mfc %p, dest %p: again connect %s done.",
+		   mfc, dest, dest->id);
+
+	/* Try again.  */
+	return fundchannel_start_spark(cmd, dest->spark, dest);
+}
+static struct command_result *
+reconnect_then_restart_err(struct command *cmd,
+			   const char *buf,
+			   const jsmntok_t *error,
+			   struct multifundchannel_destination *dest)
+{
+	struct multifundchannel_command *mfc = dest->mfc;
+	struct plugin_spark_completion *spark;
+
+	plugin_log(mfc->cmd->plugin, LOG_DBG,
+		   "mfc %p, dest %p: failed! again connect %s: %.*s.",
+		   mfc, dest, dest->id,
+		   error->end - error->start, buf + error->start);
+
+	/* Just report the original fundchannel_start error.  */
+	dest->fundchannel_start_state = multifundchannel_start_failed;
 
 	spark = dest->spark;
 	dest->spark = NULL;

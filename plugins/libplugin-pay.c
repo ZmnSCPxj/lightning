@@ -1,11 +1,11 @@
-#include "common/type_to_string.h"
-#include <plugins/libplugin-pay.h>
-#include <stdio.h>
-
 #include <bitcoin/preimage.h>
 #include <ccan/array_size/array_size.h>
 #include <ccan/tal/str/str.h>
 #include <common/json_stream.h>
+#include <common/type_to_string.h>
+#include <plugins/libplugin-pay.h>
+#include <stdio.h>
+
 
 /* Just a container to collect a subtree result so we can summarize all
  * sub-payments and return a reasonable result to the caller of `pay` */

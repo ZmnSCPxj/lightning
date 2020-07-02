@@ -1098,12 +1098,13 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("txdiscard", payload)
 
-    def txsend(self, txid):
+    def txsend(self, txid, annotate=None):
         """
         Sign and broadcast a Bitcoin transaction returned from txprepare.
         """
         payload = {
-            "txid": txid
+            "txid": txid,
+            "annotate": annotate
         }
         return self.call("txsend", payload)
 

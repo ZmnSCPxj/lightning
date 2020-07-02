@@ -882,6 +882,26 @@ def test_transaction_annotations(node_factory, bitcoind):
     scid = peers[0]['channels'][0]['short_channel_id']
     assert(txs[1]['outputs'][fundidx]['channel'] == scid)
 
+    ##########################################################################
+    # Let us now use txsend with an explicit annotation.
+    addr = l3.rpc.newaddr()['bech32']
+    txid = l1.rpc.txprepare([{addr: 10**5}])["txid"]
+    l1.rpc.txsend(txid, "withdraw")
+
+    # Let it confirm.
+    bitcoind.generate_block(1)
+    sync_blockheight(bitcoind, [l1])
+
+    # We should have 3 transactions, the third being the above
+    # txsent transaction.
+    txs = l1.rpc.listtransactions()["transactions"]
+    assert(len(txs) == 3)
+    tx = txs[2]
+    assert(tx['hash'] == txid)
+
+    # Check the annotation of the transaction itself.
+    assert(tx['type'] == ["withdraw"])
+
 
 @unittest.skipIf(VALGRIND, "It does not play well with prompt and key derivation.")
 def test_hsm_secret_encryption(node_factory):

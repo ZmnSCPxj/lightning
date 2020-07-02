@@ -2,6 +2,7 @@
 #include <bitcoin/base58.h>
 #include <bitcoin/script.h>
 #include <bitcoin/tx.h>
+#include <ccan/array_size/array_size.h>
 #include <ccan/cast/cast.h>
 #include <ccan/tal/str/str.h>
 #include <common/addr.h>
@@ -523,17 +524,33 @@ static struct command_result *param_unreleased_txid(struct command *cmd,
 	return NULL;
 }
 
+static enum wallet_tx_type string_to_txtype(const char *string,
+					    size_t slen);
+
 static struct command_result *json_txsend(struct command *cmd,
 					  const char *buffer,
 					  const jsmntok_t *obj UNNEEDED,
 					  const jsmntok_t *params)
 {
 	struct unreleased_tx *utx;
+	const char *annotate;
+	enum wallet_tx_type type = TX_UNKNOWN;
 
 	if (!param(cmd, buffer, params,
 		   p_req("txid", param_unreleased_txid, &utx),
+		   p_opt("annotate", param_string, &annotate),
 		   NULL))
 		return command_param_failed();
+
+	/* Annotate of "" means TX_UNKNOWN.  */
+	if (annotate && !streq(annotate, "")) {
+		type = string_to_txtype(annotate, strlen(annotate));
+		if (type == TX_UNKNOWN)
+			return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+					    "annotate \"%s\" not a valid "
+					    "annotation.",
+					    annotate);
+	}
 
 	/* We delete from list now, and this command owns it. */
 	remove_unreleased_tx(utx);
@@ -544,7 +561,7 @@ static struct command_result *json_txsend(struct command *cmd,
 
 	wallet_transaction_add(cmd->ld->wallet, utx->tx, 0, 0);
 	wallet_transaction_annotate(cmd->ld->wallet, &utx->txid,
-				    TX_UNKNOWN, 0);
+				    type, 0);
 
 	return broadcast_and_wait(cmd, utx);
 }
@@ -1058,6 +1075,20 @@ struct {
     {TX_CHANNEL_CHEAT, "channel_unilateral_cheat"},
     {0, NULL}
 };
+
+static enum wallet_tx_type string_to_txtype(const char *string,
+					    size_t slen)
+{
+	size_t i;
+
+	for (i = 0; i < ARRAY_SIZE(wallet_tx_type_display_names); ++i) {
+		const char *name = wallet_tx_type_display_names[i].name;
+		if (strlen(name) == slen && strstarts(string, name))
+			return wallet_tx_type_display_names[i].t;
+	}
+	return TX_UNKNOWN;
+}
+
 
 #if EXPERIMENTAL_FEATURES
 static const char *txtype_to_string(enum wallet_tx_type t)

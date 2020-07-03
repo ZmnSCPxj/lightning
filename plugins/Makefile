@@ -15,9 +15,11 @@ PLUGIN_KEYSEND_OBJS := $(PLUGIN_KEYSEND_SRC:.c=.o)
 
 PLUGIN_SPENDER_SRC :=				\
 	plugins/multiwithdraw.c			\
-	plugins/spender.c
+	plugins/spender.c			\
+	plugins/withdraw.c
 PLUGIN_SPENDER_HEADER :=			\
-	plugins/multiwithdraw.h
+	plugins/multiwithdraw.h			\
+	plugins/withdraw.h
 PLUGIN_SPENDER_OBJS := $(PLUGIN_SPENDER_SRC:.c=.o)
 
 PLUGIN_LIB_SRC := plugins/libplugin.c plugins/libplugin-pay.c

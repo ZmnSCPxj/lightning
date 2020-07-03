@@ -1,4 +1,5 @@
 #include "multiwithdraw.h"
+#include "withdraw.h"
 
 static void spender_init(struct plugin *plugin,
 			 const char *buf,
@@ -15,6 +16,8 @@ int main(int argc, char **argv)
 
 	tal_expand(&spender_commands,
 		   multiwithdraw_commands, num_multiwithdraw_commands);
+	tal_expand(&spender_commands,
+		   withdraw_commands, num_withdraw_commands);
 
 	setup_locale();
 

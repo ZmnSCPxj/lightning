@@ -169,7 +169,6 @@ static struct command_result *broadcast_and_wait(struct command *cmd,
 static struct command_result *json_prepare_tx(struct command *cmd,
 					      const char *buffer,
 					      const jsmntok_t *params,
-					      bool for_withdraw,
 					      struct unreleased_tx **utx,
 					      u32 *feerate)
 {
@@ -188,138 +187,125 @@ static struct command_result *json_prepare_tx(struct command *cmd,
 	(*utx)->wtx = tal(*utx, struct wallet_tx);
 	wtx_init(cmd, (*utx)->wtx, AMOUNT_SAT(-1ULL));
 
-	if (!for_withdraw) {
-		/* From v0.7.3, the new style for *txprepare* use array of outputs
-		 * to replace original 'destination' and 'satoshi' parameters.*/
-		/* For generating help, give new-style. */
-		if (!params || !deprecated_apis) {
-			if (!param(cmd, buffer, params,
-				   p_req("outputs", param_array, &outputstok),
-				   p_opt("feerate", param_feerate, &feerate_per_kw),
-				   p_opt_def("minconf", param_number, &minconf, 1),
-				   p_opt("utxos", param_utxos, &chosen_utxos),
-				   NULL))
-				return command_param_failed();
-		} else if (params->type == JSMN_ARRAY) {
-			const jsmntok_t *firsttok, *secondtok, *thirdtok, *fourthtok;
-
-			/* FIXME: This change completely destroyes the support for `check`. */
-			if (!param(cmd, buffer, params,
-				   p_req("outputs_or_destination", param_tok, &firsttok),
-				   p_opt("feerate_or_sat", param_tok, &secondtok),
-				   p_opt("minconf_or_feerate", param_tok, &thirdtok),
-				   p_opt("utxos_or_minconf", param_tok, &fourthtok),
-				   NULL))
-				return command_param_failed();
-
-			if (firsttok->type == JSMN_ARRAY) {
-				/* New style:
-				 * *txprepare* 'outputs' ['feerate'] ['minconf'] ['utxos'] */
-
-				/* outputs (required) */
-				outputstok = firsttok;
-
-				/* feerate (optional) */
-				if (secondtok) {
-					result = param_feerate(cmd, "feerate", buffer,
-							       secondtok, &feerate_per_kw);
-					if (result)
-						return result;
-				}
-
-				/* minconf (optional) */
-				if (thirdtok) {
-					result = param_number(cmd, "minconf", buffer,
-							      thirdtok, &minconf);
-					if (result)
-						return result;
-				} else {
-					minconf = tal(cmd, u32);
-					*minconf = 1;
-				}
-
-				/* utxos (optional) */
-				if (fourthtok) {
-					result = param_utxos(cmd, "utxos", buffer,
-							     fourthtok, &chosen_utxos);
-					if (result)
-						return result;
-				}
-			} else {
-				/* Old style:
-				 * *txprepare* 'destination' 'satoshi' ['feerate'] ['minconf'] */
-
-				/* destination (required) */
-				result = param_bitcoin_address(cmd, "destination", buffer,
-							       firsttok, &destination);
-				if (result)
-					return result;
-
-				/* satoshi (required) */
-				if (!secondtok)
-					return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
-							    "Need set 'satoshi' field.");
-				result = param_wtx(cmd, "satoshi", buffer,
-						   secondtok, (*utx)->wtx);
-				if (result)
-					return result;
-
-				/* feerate (optional) */
-				if (thirdtok) {
-					result = param_feerate(cmd, "feerate", buffer,
-							       thirdtok, &feerate_per_kw);
-					if (result)
-						return result;
-				}
-
-				/* minconf (optional) */
-				if (fourthtok) {
-					result = param_number(cmd, "minconf", buffer,
-							      fourthtok, &minconf);
-					if (result)
-						return result;
-				} else {
-					minconf = tal(cmd, u32);
-					*minconf = 1;
-				}
-			}
-		} else {
-			const jsmntok_t *satoshitok = NULL;
-			if (!param(cmd, buffer, params,
-				   p_opt("outputs", param_array, &outputstok),
-				   p_opt("destination", param_bitcoin_address,
-					 &destination),
-				   p_opt("satoshi", param_tok, &satoshitok),
-				   p_opt("feerate", param_feerate, &feerate_per_kw),
-				   p_opt_def("minconf", param_number, &minconf, 1),
-				   p_opt("utxos", param_utxos, &chosen_utxos),
-				   NULL))
-				/* If the parameters mixed the new style and the old style,
-				 * fail it. */
-				return command_param_failed();
-
-			if (!outputstok) {
-				if (!destination || !satoshitok)
-					return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
-							    "Need set 'outputs' field.");
-
-				result = param_wtx(cmd, "satoshi", buffer,
-						   satoshitok, (*utx)->wtx);
-				if (result)
-					return result;
-			}
-		}
-	} else {
-		/* *withdraw* command still use 'destination' and 'satoshi' as parameters. */
+	/* From v0.7.3, the new style for *txprepare* use array of outputs
+	 * to replace original 'destination' and 'satoshi' parameters.*/
+	/* For generating help, give new-style. */
+	if (!params || !deprecated_apis) {
 		if (!param(cmd, buffer, params,
-			   p_req("destination", param_bitcoin_address,
-				 &destination),
-			   p_req("satoshi", param_wtx, (*utx)->wtx),
+			   p_req("outputs", param_array, &outputstok),
 			   p_opt("feerate", param_feerate, &feerate_per_kw),
 			   p_opt_def("minconf", param_number, &minconf, 1),
 			   p_opt("utxos", param_utxos, &chosen_utxos),
 			   NULL))
 			return command_param_failed();
+	} else if (params->type == JSMN_ARRAY) {
+		const jsmntok_t *firsttok, *secondtok, *thirdtok, *fourthtok;
+
+		/* FIXME: This change completely destroyes the support for `check`. */
+		if (!param(cmd, buffer, params,
+			   p_req("outputs_or_destination", param_tok, &firsttok),
+			   p_opt("feerate_or_sat", param_tok, &secondtok),
+			   p_opt("minconf_or_feerate", param_tok, &thirdtok),
+			   p_opt("utxos_or_minconf", param_tok, &fourthtok),
+			   NULL))
+			return command_param_failed();
+
+		if (firsttok->type == JSMN_ARRAY) {
+			/* New style:
+			 * *txprepare* 'outputs' ['feerate'] ['minconf'] ['utxos'] */
+
+			/* outputs (required) */
+			outputstok = firsttok;
+
+			/* feerate (optional) */
+			if (secondtok) {
+				result = param_feerate(cmd, "feerate", buffer,
+						       secondtok, &feerate_per_kw);
+				if (result)
+					return result;
+			}
+
+			/* minconf (optional) */
+			if (thirdtok) {
+				result = param_number(cmd, "minconf", buffer,
+						      thirdtok, &minconf);
+				if (result)
+					return result;
+			} else {
+				minconf = tal(cmd, u32);
+				*minconf = 1;
+			}
+
+			/* utxos (optional) */
+			if (fourthtok) {
+				result = param_utxos(cmd, "utxos", buffer,
+						     fourthtok, &chosen_utxos);
+				if (result)
+					return result;
+			}
+		} else {
+			/* Old style:
+			 * *txprepare* 'destination' 'satoshi' ['feerate'] ['minconf'] */
+
+			/* destination (required) */
+			result = param_bitcoin_address(cmd, "destination", buffer,
+						       firsttok, &destination);
+			if (result)
+				return result;
+
+			/* satoshi (required) */
+			if (!secondtok)
+				return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+						    "Need set 'satoshi' field.");
+			result = param_wtx(cmd, "satoshi", buffer,
+					   secondtok, (*utx)->wtx);
+			if (result)
+				return result;
+
+			/* feerate (optional) */
+			if (thirdtok) {
+				result = param_feerate(cmd, "feerate", buffer,
+						       thirdtok, &feerate_per_kw);
+				if (result)
+					return result;
+			}
+
+			/* minconf (optional) */
+			if (fourthtok) {
+				result = param_number(cmd, "minconf", buffer,
+						      fourthtok, &minconf);
+				if (result)
+					return result;
+			} else {
+				minconf = tal(cmd, u32);
+				*minconf = 1;
+			}
+		}
+	} else {
+		const jsmntok_t *satoshitok = NULL;
+		if (!param(cmd, buffer, params,
+			   p_opt("outputs", param_array, &outputstok),
+			   p_opt("destination", param_bitcoin_address,
+				 &destination),
+			   p_opt("satoshi", param_tok, &satoshitok),
+			   p_opt("feerate", param_feerate, &feerate_per_kw),
+			   p_opt_def("minconf", param_number, &minconf, 1),
+			   p_opt("utxos", param_utxos, &chosen_utxos),
+			   NULL))
+			/* If the parameters mixed the new style and the old style,
+			 * fail it. */
+			return command_param_failed();
+
+		if (!outputstok) {
+			if (!destination || !satoshitok)
+				return command_fail(cmd, JSONRPC2_INVALID_PARAMS,
+						    "Need set 'outputs' field.");
+
+			result = param_wtx(cmd, "satoshi", buffer,
+					   satoshitok, (*utx)->wtx);
+			if (result)
+				return result;
+		}
 	}
 
 	/* Setting the locktime to the next block to be mined has multiple
@@ -478,7 +464,7 @@ static struct command_result *json_txprepare(struct command *cmd,
 	struct command_result *res;
 	struct json_stream *response;
 
-	res = json_prepare_tx(cmd, buffer, params, false, &utx, NULL);
+	res = json_prepare_tx(cmd, buffer, params, &utx, NULL);
 	if (res)
 		return res;
 
@@ -605,47 +591,6 @@ static const struct json_command txdiscard_command = {
 	false
 };
 AUTODATA(json_command, &txdiscard_command);
-
-/**
- * json_withdraw - Entrypoint for the withdrawal flow
- *
- * A user has requested a withdrawal over the JSON-RPC, parse the
- * request, select coins and a change key. Then send the request to
- * the HSM to generate the signatures.
- */
-static struct command_result *json_withdraw(struct command *cmd,
-					    const char *buffer,
-					    const jsmntok_t *obj UNNEEDED,
-					    const jsmntok_t *params)
-{
-	struct unreleased_tx *utx;
-	struct command_result *res;
-
-	res = json_prepare_tx(cmd, buffer, params, true, &utx, NULL);
-	if (res)
-		return res;
-
-	/* Store the transaction in the DB and annotate it as a withdrawal */
-	wallet_transaction_add(cmd->ld->wallet, utx->tx, 0, 0);
-	wallet_transaction_annotate(cmd->ld->wallet, &utx->txid,
-				    TX_WALLET_WITHDRAWAL, 0);
-
-	return broadcast_and_wait(cmd, utx);
-}
-
-static const struct json_command withdraw_command = {
-	"withdraw",
-	"bitcoin",
-	json_withdraw,
-	"Send to {destination} address {satoshi} (or 'all') amount via Bitcoin "
-	"transaction, at optional {feerate}",
-	false,
-	"Send funds from the internal wallet to the specified address. Either "
-	"specify a number of satoshis to send or 'all' to sweep all funds in the "
-	"internal wallet to the address. Only use outputs that have at least "
-	"{minconf} confirmations."
-};
-AUTODATA(json_command, &withdraw_command);
 
 /* May return NULL if encoding error occurs. */
 static char *
@@ -1233,7 +1178,7 @@ static struct command_result *json_reserveinputs(struct command *cmd,
 
 	u32 feerate;
 
-	res = json_prepare_tx(cmd, buffer, params, false, &utx, &feerate);
+	res = json_prepare_tx(cmd, buffer, params, &utx, &feerate);
 	if (res)
 		return res;
 

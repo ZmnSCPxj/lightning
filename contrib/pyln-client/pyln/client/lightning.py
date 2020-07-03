@@ -846,6 +846,21 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("listsendpays", payload)
 
+    def multiwithdraw(self, outputs, feerate=None, minconf=None, utxos=None, **kwargs):
+        """Send funds from the internal wallet to multiple {outputs},
+        an array of {address: amount} objects.
+        Send at {feerate}, selecting inputs with at least {minconf}
+        confirmations, or the exact {utxos} to spend.
+        """
+        payload = {
+            "outputs": outputs,
+            "feerate": feerate,
+            "minconf": minconf,
+            "utxos": utxos,
+        }
+        payload.update({k: v for k, v in kwargs.items()})
+        return self.call("multiwithdraw", payload)
+
     def newaddr(self, addresstype=None):
         """Get a new address of type {addresstype} of the internal wallet.
         """

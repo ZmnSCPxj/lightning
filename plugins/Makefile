@@ -13,6 +13,13 @@ PLUGIN_BCLI_OBJS := $(PLUGIN_BCLI_SRC:.c=.o)
 PLUGIN_KEYSEND_SRC := plugins/keysend.c
 PLUGIN_KEYSEND_OBJS := $(PLUGIN_KEYSEND_SRC:.c=.o)
 
+PLUGIN_SPENDER_SRC :=				\
+	plugins/multiwithdraw.c			\
+	plugins/spender.c
+PLUGIN_SPENDER_HEADER :=			\
+	plugins/multiwithdraw.h
+PLUGIN_SPENDER_OBJS := $(PLUGIN_SPENDER_SRC:.c=.o)
+
 PLUGIN_LIB_SRC := plugins/libplugin.c plugins/libplugin-pay.c
 PLUGIN_LIB_HEADER := plugins/libplugin.h plugins/libplugin-pay.h
 PLUGIN_LIB_OBJS := $(PLUGIN_LIB_SRC:.c=.o)
@@ -23,9 +30,11 @@ PLUGIN_ALL_SRC :=				\
 	$(PLUGIN_FUNDCHANNEL_SRC)		\
 	$(PLUGIN_KEYSEND_SRC)			\
 	$(PLUGIN_LIB_SRC)			\
-	$(PLUGIN_PAY_SRC)
+	$(PLUGIN_PAY_SRC)			\
+	$(PLUGIN_SPENDER_SRC)
 PLUGIN_ALL_HEADER :=				\
-	$(PLUGIN_LIB_HEADER)
+	$(PLUGIN_LIB_HEADER)			\
+	$(PLUGIN_SPENDER_HEADER)
 PLUGIN_ALL_OBJS := $(PLUGIN_ALL_SRC:.c=.o)
 
 PLUGINS :=					\
@@ -33,7 +42,8 @@ PLUGINS :=					\
 	plugins/bcli				\
 	plugins/fundchannel			\
 	plugins/keysend				\
-	plugins/pay
+	plugins/pay				\
+	plugins/spender
 
 PLUGIN_COMMON_OBJS :=				\
 	bitcoin/base58.o			\
@@ -82,6 +92,9 @@ plugins/fundchannel: common/addr.o $(PLUGIN_FUNDCHANNEL_OBJS) $(PLUGIN_LIB_OBJS)
 plugins/bcli: bitcoin/chainparams.o $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 
 plugins/keysend: bitcoin/chainparams.o wire/tlvstream.o wire/gen_onion_wire.o $(PLUGIN_KEYSEND_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
+
+plugins/spender: bitcoin/chainparams.o $(PLUGIN_SPENDER_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
+$(PLUGIN_SPENDER_OBJS): $(PLUGIN_SPENDER_HEADER)
 
 $(PLUGIN_ALL_OBJS): $(PLUGIN_LIB_HEADER)
 

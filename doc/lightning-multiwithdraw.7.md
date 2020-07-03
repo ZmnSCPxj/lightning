@@ -1,25 +1,25 @@
-lightning-withdraw -- Command for withdrawing funds from the internal wallet
-============================================================================
+lightning-multiwithdraw -- Command for withdrawing to multiple addresses
+========================================================================
 
 SYNOPSIS
 --------
 
-**withdraw** *destination* *satoshi* \[*feerate*\] \[*minconf*\] \[*utxos*\]
+**multiwithdraw** *outputs*  \[*feerate*\] \[*minconf*\] \[*utxos*\]
 
 DESCRIPTION
 -----------
 
-The **withdraw** RPC command sends funds from c-lightning’s internal
-wallet to the address specified in *destination*.
-
-The address can be of any Bitcoin accepted type, including bech32.
-
-*satoshi* is the amount to be withdrawn from the internal wallet
-(expressed, as name suggests, in satoshi). The string *all* can be used
-to specify withdrawal of all available funds. Otherwise, it is in
-satoshi precision; it can be a whole number, a whole number ending in
-*sat*, a whole number ending in *000msat*, or a number with 1 to 8
-decimal places ending in *btc*.
+The **multiwithdraw** RPC command sends funds from c-lightning’s internal
+wallet to the addresses specified in *outputs*,
+which is an array containing objects of the form `{address: amount}`.
+The `amount` may be the string *"all"*, indicating that all onchain funds
+be sent to the specified address.
+Otherwise, it is in satoshi precision;
+it can be
+a whole number,
+a whole number ending in *sat*,
+a whole number ending in *000msat*,
+or a number with 1 to 8 decimal places ending in *btc*.
 
 *feerate* is an optional feerate to use. It can be one of the strings
 *urgent* (aim for next block), *normal* (next 4 blocks or so) or *slow*
@@ -57,13 +57,13 @@ fees) to create the transaction.
 AUTHOR
 ------
 
-Felix <<fixone@gmail.com>> is mainly responsible.
+ZmnSCPxj < <ZmnSCPxj@protonmail.com> > is mainly responsible.
 
 SEE ALSO
 --------
 
 lightning-listfunds(7), lightning-fundchannel(7), lightning-newaddr(7),
-lightning-txprepare(7), lightning-multiwithdraw(7).
+lightning-txprepare(7), lightning-withdraw(7).
 
 RESOURCES
 ---------

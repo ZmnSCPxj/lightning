@@ -69,4 +69,10 @@ static const errcode_t INVOICE_WAIT_TIMED_OUT = 904;
 /* Errors from HSM crypto operations. */
 static const errcode_t HSM_ECDH_FAILED = 800;
 
+/* Errors from `txaccelerate` family. Up to 11. */
+static const errcode_t TXACCELERATE_ID_NOT_FOUND = 1100;
+static const errcode_t TXACCELERATE_TXID_NOT_ACCELERATABLE = 1101;
+static const errcode_t TXACCELERATE_TXID_ALREADY_ACCELERATING = 1102;
+static const errcode_t TXACCELERATE_MAX_ACCEPTABLE_TOO_LOW = 1103;
+
 #endif /* LIGHTNING_COMMON_JSONRPC_ERRORS_H */

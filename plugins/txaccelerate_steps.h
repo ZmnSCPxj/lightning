@@ -1,0 +1,7 @@
+#ifndef LIGHTNING_PLUGINS_TXACCELERATE_STEPS_H
+#define LIGHTNING_PLUGINS_TXACCELERATE_STEPS_H
+#include "config.h"
+
+#include <plugins/libplugin.h>
+
+#endif /* LIGHTNING_PLUGINS_TXACCELERATE_STEPS_H */

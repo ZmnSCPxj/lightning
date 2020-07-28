@@ -39,6 +39,26 @@ struct bitcoin_tx_output {
 	u8 *script;
 };
 
+/** struct bitcoin_outpoint
+ *
+ * @brief reference to a transaction output point.
+ *
+ * @desc Refers to a transaction output point.
+ * This is used to generate a filter for blockchain
+ * backends to check if a block has transactions that
+ * match an outpoint.
+ *
+ * The `script` is the `scriptPubKey` of the outpoint.
+ * The `scriptPubKey` is necessary since some backends
+ * can only index by `scriptPubKey` and might not
+ * maintain a txid-outnum index.
+ */
+struct bitcoin_outpoint {
+	struct bitcoin_txid txid;
+	u32 outnum;
+	u8 *script;
+};
+
 struct bitcoin_tx_output *new_tx_output(const tal_t *ctx,
 					struct amount_sat amount,
 					const u8 *script);

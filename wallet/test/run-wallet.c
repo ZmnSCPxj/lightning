@@ -35,6 +35,9 @@ bool deprecated_apis = true;
 /* Generated stub for bigsize_put */
 size_t bigsize_put(u8 buf[BIGSIZE_MAX_LEN] UNNEEDED, bigsize_t v UNNEEDED)
 { fprintf(stderr, "bigsize_put called!\n"); abort(); }
+/* Generated stub for bitcoind_can_getutxobyscid */
+bool bitcoind_can_getutxobyscid(const struct bitcoind *bitcoind UNNEEDED)
+{ fprintf(stderr, "bitcoind_can_getutxobyscid called!\n"); abort(); }
 /* Generated stub for bitcoind_getutxout_ */
 void bitcoind_getutxout_(struct bitcoind *bitcoind UNNEEDED,
 			 const struct bitcoin_txid *txid UNNEEDED, const u32 outnum UNNEEDED,

@@ -3995,6 +3995,17 @@ void wallet_clean_utxos(struct wallet *w, struct bitcoind *bitcoind)
 {
 	struct utxo **utxos = wallet_get_utxos(NULL, w, output_state_reserved);
 
+	/* TODO: SPV backends cannot look up except by address, but bitcoind
+	 * itself cannot look up except by transaction ID+vout.
+	 * We should instead use bitcoind_checkspent to ask the SPV backend
+	 * to check if any of a set of UTXOs is spent, even at the mempool.
+	 * bitcoind_checkspent may be expensive, but wallet_clean_utxos is
+	 * called during init only, and we can restrict this to only checking
+	 * for reserved utxos instead of all of them (since the comments for
+	 * wallet_clean_utxos only mention reserved utxos anyway).
+	 */
+	assert(!bitcoind_can_getutxobyscid(bitcoind));
+
 	if (tal_count(utxos) != 0) {
 		bitcoind_getutxout(bitcoind, &utxos[0]->txid, utxos[0]->outnum,
 				   process_utxo_result,

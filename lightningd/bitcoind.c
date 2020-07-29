@@ -779,3 +779,41 @@ struct bitcoind *new_bitcoind(const tal_t *ctx,
 
 	return bitcoind;
 }
+
+bool bitcoind_can_getutxobyscid(const struct bitcoind *bitcoind)
+{
+	/* TODO: Check that the backend plugin implements `getutxobyscid`.  */
+	return false;
+}
+
+void bitcoind_getutxobyscid_(struct bitcoind *bitcoind,
+			     struct short_channel_id scid,
+			     u8 *script TAKES,
+			     void (*cb)(struct bitcoind *,
+					const struct bitcoin_txid *,
+					const struct bitcoin_tx_output *,
+					void *),
+			     void *arg)
+{
+	/* TODO: Forward to backend plugin.  */
+	fatal("bitcoind_getutxobyscid not implemented yet!");
+}
+
+void bitcoind_gettxesbyheight_(struct bitcoind *bitcoind,
+			       u32 height,
+			       u8 **receive_scriptpubkeys TAKES,
+			       struct bitcoin_outpoint *spend_utxos TAKES,
+			       void (*cb)(struct bitcoind *bitcoind,
+					  struct bitcoin_blkid *blkid,
+					  struct bitcoin_block *blk,
+					  void *arg),
+			       void *arg)
+{
+	if (!bitcoind_can_getutxobyscid(bitcoind))
+		/* Fallback for really old versions of the backend API.  */
+		return bitcoind_getrawblockbyheight_(bitcoind, height,
+						     cb, arg);
+
+	/* TODO: Forward to backend plugin.  */
+	fatal("bitcoind_gettxesbyheight not implemented yet!");
+}

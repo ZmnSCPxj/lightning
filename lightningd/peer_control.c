@@ -2176,6 +2176,11 @@ static struct command_result *json_dev_forget_channel(struct command *cmd,
 				    "or `dev-fail` instead.");
 	}
 
+	/* TODO: use bitcoind_getutxobyscid if that is what is supported by
+	 * the backend.
+	 */
+	assert(!bitcoind_can_getutxobyscid(cmd->ld->topology->bitcoind));
+
 	bitcoind_getutxout(cmd->ld->topology->bitcoind,
 			   &forget->channel->funding_txid,
 			   forget->channel->funding_outnum,

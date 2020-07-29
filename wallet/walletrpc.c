@@ -1031,6 +1031,13 @@ static struct command_result *json_dev_rescan_outputs(struct command *cmd,
 		json_array_end(rescan->response);
 		return command_success(cmd, rescan->response);
 	}
+
+	/* TODO: SPV backends cannot look up except by address, but bitcoind
+	 * itself cannot look up except by transaction ID+vout.
+	 * We should instead use bitcoind_checkspent to ask the SPV backend.
+	 */
+	assert(!bitcoind_can_getutxobyscid(cmd->ld->topology->bitcoind));
+
 	bitcoind_getutxout(cmd->ld->topology->bitcoind, &rescan->utxos[0]->txid,
 			  rescan->utxos[0]->outnum, process_utxo_result,
 			  rescan);

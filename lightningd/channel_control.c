@@ -827,6 +827,10 @@ struct command_result *cancel_channel_before_broadcast(struct command *cmd,
 
 	tal_arr_expand(&cancel_channel->forgets, cmd);
 
+	/* TODO: use bitcoind_getutxobyscid if that is what is supported by
+	 * the backend.
+	 */
+	assert(!bitcoind_can_getutxobyscid(cmd->ld->topology->bitcoind));
 	/* Check if the transaction is onchain. */
 	/* Note: The above check and this check can't completely ensure that
 	 * the funding transaction isn't broadcast. We can't know if the funding

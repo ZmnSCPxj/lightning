@@ -1351,4 +1351,11 @@ struct penalty_base *wallet_penalty_base_load_for_channel(const tal_t *ctx,
  */
 void wallet_penalty_base_delete(struct wallet *w, u64 chan_id, u64 commitnum);
 
+/**
+ * Gather the scriptpubkeys and UTXOs this wallet cares about.
+ */
+void wallet_gather_filters(struct wallet *w,
+			   u8 ***receive_scriptpubkeys,
+			   struct bitcoin_outpoint **spend_utxos);
+
 #endif /* LIGHTNING_WALLET_WALLET_H */

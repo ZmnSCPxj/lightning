@@ -91,4 +91,28 @@ void txwatch_inform(const struct chain_topology *topo,
 		    const struct bitcoin_tx *tx_may_steal);
 
 void watch_topology_changed(struct chain_topology *topo);
+
+/** watch_gather_filters
+ *
+ * @brief Gather output scriptpubkeys of transactions that watches want to
+ * know if they get confirmed, and transaction outputs that watches want
+ * to know if they get spent.
+ *
+ * @desc The watch system has to check that transactions appear onchain.
+ * Since every transaction has at least one output, we just need to provide
+ * any scriptpubkey of any output.
+ * In addition, the watch system will include UTXOs that are also being
+ * watched.
+ *
+ * @param topo - the chaintopology that keeps watches.
+ * @param receive_scriptpubkeys - in/out; a `tal_arr` array of
+ * scriptpubkeys which is extended to add scriptpubkeys of outputs of
+ * transactions that are being watched for confirmation.
+ * @param spend_utxos - in/out; a `tal_arr` array of UTXOs which is
+ * extended to add UTXOs that are being watched.
+ */
+void watch_gather_filters(struct chain_topology *topo,
+			  u8 ***receive_scriptpubkeys,
+			  struct bitcoin_outpoint **spend_utxos);
+
 #endif /* LIGHTNING_LIGHTNINGD_WATCH_H */

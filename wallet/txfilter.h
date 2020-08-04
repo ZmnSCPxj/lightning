@@ -6,6 +6,8 @@
 #include <ccan/short_types/short_types.h>
 #include <ccan/tal/tal.h>
 
+struct bitcoin_outpoint;
+
 struct txfilter;
 
 /**
@@ -38,6 +40,14 @@ bool txfilter_match(const struct txfilter *filter, const struct bitcoin_tx *tx);
  * txfilter_add_scriptpubkey -- Add a serialized scriptpubkey to the filter
  */
 void txfilter_add_scriptpubkey(struct txfilter *filter, const u8 *script TAKES);
+
+/**
+ * txfilter_gather_filters -- Add the filters in the txfilter to the given
+ * filter sets.
+ */
+void txfilter_gather_filters(const struct txfilter *filter,
+			     u8 ***receive_scriptpubkeys,
+			     struct bitcoin_outpoint **spend_utxos);
 
 /**
  * outpointfilter_new -- Create a new outpointfilter

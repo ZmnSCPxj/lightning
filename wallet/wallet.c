@@ -4175,3 +4175,10 @@ void wallet_penalty_base_delete(struct wallet *w, u64 chan_id, u64 commitnum)
 	db_bind_u64(stmt, 1, commitnum);
 	db_exec_prepared_v2(take(stmt));
 }
+
+void wallet_gather_filters(struct wallet *w,
+			   u8 ***receive_scriptpubkeys,
+			   struct bitcoin_outpoint **spend_utxos)
+{
+	/* TODO */
+}

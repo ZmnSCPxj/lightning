@@ -112,6 +112,13 @@ bool txfilter_match(const struct txfilter *filter, const struct bitcoin_tx *tx)
 	return false;
 }
 
+void txfilter_gather_filters(const struct txfilter *filter,
+			     u8 ***receive_scriptpubkeys,
+			     struct bitcoin_outpoint **spend_utxos)
+{
+	/* TODO */
+}
+
 void outpointfilter_add(struct outpointfilter *of, const struct bitcoin_txid *txid, const u32 outnum)
 {
 	struct outpointfilter_entry *op;

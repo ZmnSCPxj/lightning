@@ -675,6 +675,34 @@ void notify_new_block(struct lightningd *ld, u32 block_height)
 	waitblockheight_notify_new_block(ld, block_height);
 }
 
+/*~ Yet another function that does not quite fit anywhere.
+ * This is similar to a notifier as well, but one which has to update
+ * some data.
+ * *This* particular function gathers all UTXOs and scriptPubKeys that
+ * all sub-components of lightningd are interested in: onchain wallet,
+ * channels, gossip, and onchain channel close resolution.  */
+void lightningd_gather_filters(struct lightningd *ld,
+			       u8 ***receive_scriptpubkeys,
+			       struct bitcoin_outpoint **spend_utxos)
+{
+	/*~ The onchain wallet is interested in spends from our onchain
+	 * funds.  */
+	wallet_gather_filters(ld->wallet,
+			      receive_scriptpubkeys, spend_utxos);
+	/*~ Gossip wants to know when a gossiped channel is closed,
+	 * to remove it from the routemap.  */
+	gossip_gather_filters(ld, receive_scriptpubkeys, spend_utxos);
+	/*~ The watch system is interested in particular transactions
+	 * getting confirmed, and will add filters for an output of
+	 * those transactions.
+	 * The watch system is used by funding transaction confirmation,
+	 * as well as channel close monitoring.  */
+	watch_gather_filters(ld->topology, receive_scriptpubkeys, spend_utxos);
+	/*~ We maintain a set of addresses we own.  */
+	txfilter_gather_filters(ld->owned_txfilter,
+				receive_scriptpubkeys, spend_utxos);
+}
+
 static void on_sigint(int _ UNUSED)
 {
         static const char *msg = "lightningd: SIGINT caught, exiting.\n";

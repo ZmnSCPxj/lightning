@@ -289,4 +289,26 @@ void test_subdaemons(const struct lightningd *ld);
 /* Notify lightningd about new blocks. */
 void notify_new_block(struct lightningd *ld, u32 block_height);
 
+/** lightningd_gather_filters
+ *
+ * @brief Gather the utxos and scriptpubkeys that all parts of lightningd
+ * want to know from new blocks.
+ *
+ * @param ld - the lightningd.
+ * @param receive_scriptpubkeys - in/out; the caller initializes the pointed-to
+ * location to a `tal_arr` array of `u8 *`.
+ * Additional `scriptPubKey`s will be `tal`-allocated from this array, then
+ * it will be resized to add them to the array.
+ * If a transaction pays out to one of the `scriptPubKey`s, then some
+ * lightningd component expects to see it in incoming block data.
+ * @param spend_utxos - in/out; the caller initializes the pointed-to
+ * location to a `tal_arr` array of `struct bitcoin_output`.
+ * The array will be resized to add new UTXOs to be monitored.
+ * If a transaction spends one of the UTXOs, then some lightningd component
+ * expects to see it in incoming block data.
+ */
+void lightningd_gather_filters(struct lightningd *ld,
+			       u8 ***receive_scriptpubkeys,
+			       struct bitcoin_outpoint **spend_utxos);
+
 #endif /* LIGHTNING_LIGHTNINGD_LIGHTNINGD_H */

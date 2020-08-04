@@ -227,6 +227,13 @@ void gossipd_notify_spend(struct lightningd *ld,
 	subd_send_msg(ld->gossip, msg);
 }
 
+void gossip_gather_filters(struct lightningd *ld,
+			   u8 ***receive_scriptpubkeys,
+			   struct bitcoin_outpoint **spend_utxos)
+{
+	/* TODO */
+}
+
 static void json_getnodes_reply(struct subd *gossip UNUSED, const u8 *reply,
 				const int *fds UNUSED,
 				struct command *cmd)

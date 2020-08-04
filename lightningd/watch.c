@@ -321,3 +321,10 @@ void txwatch_inform(const struct chain_topology *topo,
 	if (txw && !txw->tx)
 		txw->tx = tal_steal(txw, tx_may_steal);
 }
+
+void watch_gather_filters(struct chain_topology *topo,
+			  u8 ***receive_scriptpubkeys,
+			  struct bitcoin_outpoint **spend_utxos)
+{
+	/* TODO */
+}

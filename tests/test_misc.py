@@ -2408,3 +2408,25 @@ def test_listtransactions(node_factory):
     # The txid of the transaction funding the channel is present, and
     # represented as little endian (like bitcoind and explorers).
     assert wallettxid in txids
+
+
+def test_permuteroute_simple(node_factory, bitcoind):
+    """ Simple test for permuteroute.
+    """
+    l1, l2, l3, l4, l5 = node_factory.line_graph(5, wait_for_announce=True)
+    # Add a shortcut
+    l4.rpc.connect(l2.info['id'], 'localhost', l2.port)
+    scid = l4.fund_channel(l2, 10**6)
+    # Wait for l1 to learn it
+    bitcoind.generate_block(5)
+    wait_for(lambda: len(l1.rpc.listchannels(scid)['channels']) >= 2)
+
+    # Get a starting route
+    route = l1.rpc.getroute(l5.info['id'], 1, 1)['route']
+    # It should be l1->l2->l4->l5
+    assert len(route) == 3
+
+    # Permute it, simulating a problem with l2->l4
+    newroute = l1.rpc.permuteroute(route, 1, False)['route']
+    # It should now be l1->l2->l3->l4->l5
+    assert len(newroute) == 4

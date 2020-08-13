@@ -880,6 +880,20 @@ class LightningRpc(UnixDomainSocketRpc):
         }
         return self.call("paystatus", payload)
 
+    def permuteroute(self, route, erring_index, nodefailure, source=None, exclude=[], **kwargs):
+        """Modify a failing route, changing only the failing part of the
+        route.
+        """
+        payload = {
+            "route": route,
+            "erring_index": erring_index,
+            "nodefailure": nodefailure,
+            "source": source,
+            "exclude": exclude
+        }
+        payload.update({k: v for k, v in kwargs.items()})
+        return self.call("permuteroute", payload)
+
     def ping(self, peer_id, length=128, pongbytes=128):
         """
         Send {peer_id} a ping of length {len} asking for {pongbytes}.

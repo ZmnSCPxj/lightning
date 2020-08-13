@@ -13,6 +13,12 @@ PLUGIN_BCLI_OBJS := $(PLUGIN_BCLI_SRC:.c=.o)
 PLUGIN_KEYSEND_SRC := plugins/keysend.c
 PLUGIN_KEYSEND_OBJS := $(PLUGIN_KEYSEND_SRC:.c=.o)
 
+PLUGIN_ROUTETRICKS_SRC :=			\
+	plugins/routetricks.c			\
+	plugins/routetricks/permuteroute.c
+PLUGIN_ROUTETRICKS_HEADER := $(PLUGIN_ROUTETRICKS_SRC:.c=.h)
+PLUGIN_ROUTETRICKS_OBJS := $(PLUGIN_ROUTETRICKS_SRC:.c=.o)
+
 PLUGIN_LIB_SRC := plugins/libplugin.c
 PLUGIN_LIB_HEADER := plugins/libplugin.h
 PLUGIN_LIB_OBJS := $(PLUGIN_LIB_SRC:.c=.o)
@@ -28,10 +34,12 @@ PLUGIN_ALL_SRC :=				\
 	$(PLUGIN_KEYSEND_SRC)			\
 	$(PLUGIN_LIB_SRC)			\
 	$(PLUGIN_PAY_LIB_SRC)			\
-	$(PLUGIN_PAY_SRC)
+	$(PLUGIN_PAY_SRC)			\
+	$(PLUGIN_ROUTETRICKS_SRC)
 PLUGIN_ALL_HEADER :=				\
 	$(PLUGIN_LIB_HEADER)			\
-	$(PLUGIN_PAY_LIB_HEADER)
+	$(PLUGIN_PAY_LIB_HEADER)		\
+	$(PLUGIN_ROUTETRICKS_HEADER)
 PLUGIN_ALL_OBJS := $(PLUGIN_ALL_SRC:.c=.o)
 
 PLUGINS :=					\
@@ -39,7 +47,8 @@ PLUGINS :=					\
 	plugins/bcli				\
 	plugins/fundchannel			\
 	plugins/keysend				\
-	plugins/pay
+	plugins/pay				\
+	plugins/routetricksp
 
 PLUGIN_COMMON_OBJS :=				\
 	bitcoin/base58.o			\
@@ -91,6 +100,8 @@ plugins/bcli: bitcoin/chainparams.o $(PLUGIN_BCLI_OBJS) $(PLUGIN_LIB_OBJS) $(PLU
 
 plugins/keysend: bitcoin/chainparams.o wire/tlvstream.o wire/gen_onion_wire.o $(PLUGIN_KEYSEND_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_PAY_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 $(PLUGIN_KEYSEND_OBJS): $(PLUGIN_PAY_LIB_HEADER)
+
+plugins/routetricksp: bitcoin/chainparams.o $(PLUGIN_ROUTETRICKS_OBJS) $(PLUGIN_LIB_OBJS) $(PLUGIN_COMMON_OBJS) $(JSMN_OBJS) $(CCAN_OBJS)
 
 $(PLUGIN_ALL_OBJS): $(PLUGIN_LIB_HEADER)
 

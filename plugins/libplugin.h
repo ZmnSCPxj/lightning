@@ -48,11 +48,14 @@ struct out_req {
 	void *arg;
 };
 
+struct plugin_command_finalizer;
 struct command {
 	u64 *id;
 	const char *methodname;
 	bool usage_only;
 	struct plugin *plugin;
+
+	struct plugin_command_finalizer *finalize;
 };
 
 /* Create an array of these, one for each command you support. */
@@ -322,5 +325,85 @@ struct route_hop {
 
 struct route_hop *json_to_route(const tal_t *ctx, const char *buffer,
 				const jsmntok_t *toks);
+
+/** plugin_command_finally
+ *
+ * @brief set up a function to be called just before a command
+ * returns a success or error response.
+ *
+ * @desc Set up a finalizer function that will be called when
+ * the command completes.
+ * The finalizer function can send out commands to `lightningd`.
+ * It then signals completion of the finalization by calling
+ * `plugin_command_finalize_complete`.
+ *
+ * Note that the finalizer MUST NOT cause the command to be
+ * completed again, i.e. the finalizer must not call `command_fail`
+ * or `command_success` or any other function that signals
+ * completion of the command, since the command is *already*
+ * completed.
+ * In particular, it must not use `forward_error` or `forward_result`
+ * in `jsonrpc_request_start`.
+ * Similarly, it cannot trigger a finalization by
+ * `plugin_command_finalize`.
+ *
+ * This is intended to be used for cleaning up resources you
+ * acquired from `lightningd`, such as input reservations or
+ * pending outgoing channel fundings.
+ *
+ * A `struct command` can only have one finalizer at a time.
+ * Calling this function multiple times results in the last
+ * finalizer registered overriding the others.
+ *
+ * You cannot install a new finalizer while a finalizer is
+ * already executing.
+ */
+void plugin_command_finally_(struct command *cmd,
+			     struct command_result *(*cb)(struct command *cmd,
+							  void *arg),
+			     void *arg);
+#define plugin_command_finally(cmd, cb, arg) \
+	plugin_command_finally_((cmd), \
+				typesafe_cb_preargs(struct command_result *,\
+						    void *,\
+						    (cb), (arg), \
+						    struct command *cmd), \
+				(arg))
+
+/** plugin_command_finalize_complete
+ *
+ * @brief called by a command finalizer to indicate completion
+ * of the finalization.
+ */
+struct command_result *WARN_UNUSED_RESULT
+plugin_command_finalize_complete(struct command *cmd);
+
+/** plugin_command_finalize
+ *
+ * @brief call, and remove, the command finalizer, if any,
+ * and then call the callback.
+ *
+ * @desc Call the command finalizer, if one exists, and
+ * call the callback.
+ * Once the callback is entered, the command will no longer
+ * have any finalizers.
+ *
+ * This is useful if you ever have to "reset" your command
+ * somehow and retry it.
+ * Then you can unify your "cleanup" code with your "reset"
+ * code.
+ */
+struct command_result *WARN_UNUSED_RESULT
+plugin_command_finalize_(struct command *cmd,
+			 struct command_result *(*cb)(struct command *cmd,
+						      void *arg),
+			 void *arg);
+#define plugin_command_finalize(cmd, cb, arg) \
+	plugin_command_finalize_((cmd), \
+				 typesafe_cb_preargs(struct command_result *, \
+						     void *,\
+						     (cb), (arg), \
+						     struct command *cmd), \
+				 (arg))
 
 #endif /* LIGHTNING_PLUGINS_LIBPLUGIN_H */

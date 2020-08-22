@@ -210,12 +210,21 @@ struct json_stream *jsonrpc_stream_fail_data(struct command *cmd,
 	return js;
 }
 
+static struct command_result *command_send_result(struct command *cmd,
+						  struct json_stream *result);
 static struct command_result *command_complete(struct command *cmd,
 					       struct json_stream *result)
 {
 	/* Global object */
 	json_object_compat_end(result);
 	json_stream_close(result, cmd);
+
+	return plugin_command_finalize(cmd, &command_send_result,
+				       tal_steal(cmd, result));
+}
+static struct command_result *command_send_result(struct command *cmd,
+						  struct json_stream *result)
+{
 	ld_send(cmd->plugin, result);
 	tal_free(cmd);
 
@@ -926,6 +935,7 @@ static void setup_command_usage(struct plugin *p)
 	/* This is how common/param can tell it's just a usage request */
 	usage_cmd->usage_only = true;
 	usage_cmd->plugin = p;
+	usage_cmd->finalize = NULL;
 	for (size_t i = 0; i < p->num_commands; i++) {
 		struct command_result *res;
 
@@ -1099,6 +1109,7 @@ static bool ld_read_json_one(struct plugin *plugin)
 {
 	bool complete;
 	struct command *cmd = tal(plugin, struct command);
+	cmd->finalize = NULL;
 
 	if (!json_parse_input(&plugin->parser, &plugin->toks,
 			      plugin->buffer, plugin->used,
@@ -1513,4 +1524,82 @@ struct route_hop *json_to_route(const tal_t *ctx, const char *buffer,
 			return tal_free(hops);
 	}
 	return hops;
+}
+
+struct plugin_command_finalizer {
+	/* Function to call *at* plugin_command_finalize.  */
+	struct command_result *(*finalizer)(struct command *, void *);
+	void *finalizer_arg;
+
+	bool is_finalizing;
+
+	/* Function to call *after* plugin_command_finalize.
+	 * NULL if !is_finalizing.  */
+	struct command_result *(*cont)(struct command *, void*);
+	void *cont_arg;
+};
+
+struct command_result *WARN_UNUSED_RESULT
+plugin_command_finalize_(struct command *cmd,
+			 struct command_result *(*cb)(struct command *cmd,
+						      void *arg),
+			 void *arg)
+{
+	/* No finalizer?  No problem.  */
+	if (!cmd->finalize)
+		return cb(cmd, arg);
+
+	/* Misuse of API.  */
+	if (cmd->finalize->is_finalizing)
+		plugin_err(cmd->plugin,
+			   "Attempt to finalize command while finalizer "
+			   "is already on-going: %s %"PRIu64,
+			   cmd->methodname, cmd->id ? *cmd->id : 0);
+
+	cmd->finalize->is_finalizing = true;
+	cmd->finalize->cont = cb;
+	cmd->finalize->cont_arg = arg;
+
+	return cmd->finalize->finalizer(cmd, cmd->finalize->finalizer_arg);
+}
+
+struct command_result *WARN_UNUSED_RESULT
+plugin_command_finalize_complete(struct command *cmd)
+{
+	/* Misuse of API.  */
+	if (!cmd->finalize || !cmd->finalize->is_finalizing)
+		plugin_err(cmd->plugin,
+			   "Attempt to complete finalization without any "
+			   "finalizer on-going: %s %"PRIu64,
+			   cmd->methodname, cmd->id ? *cmd->id : 0);
+
+	/* Take responsibility for the finalizer object.  */
+	struct plugin_command_finalizer *f;
+	f = tal_steal(tmpctx, cmd->finalize);
+	cmd->finalize = NULL;
+
+	return f->cont(cmd, f->cont_arg);
+}
+
+void plugin_command_finally_(struct command *cmd,
+			     struct command_result *(*cb)(struct command *cmd,
+							  void *arg),
+			     void *arg)
+{
+	if (cmd->finalize) {
+		/* Misuse of API.  */
+		if (cmd->finalize->is_finalizing)
+			plugin_err(cmd->plugin,
+				   "Attempt to change finalizer while "
+				   "finalizer is already on-going: %s %"PRIu64,
+				   cmd->methodname, cmd->id ? *cmd->id : 0);
+		tal_steal(tmpctx, cmd->finalize);
+	}
+
+	cmd->finalize = tal(cmd, struct plugin_command_finalizer);
+	cmd->finalize->finalizer = cb;
+	cmd->finalize->finalizer_arg = arg;
+	cmd->finalize->is_finalizing = false;
+	cmd->finalize->cont = NULL;
+	cmd->finalize->cont_arg = NULL;
 }

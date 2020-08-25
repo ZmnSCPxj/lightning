@@ -3373,3 +3373,30 @@ def test_mpp_waitblockheight_routehint_conflict(node_factory, bitcoind, executor
 
     # pay command should complete without error
     fut.result(TIMEOUT)
+
+
+@pytest.mark.xfail(strict=True)
+def test_pay_amount_randomize(node_factory):
+    """ Tests if randomization of the payment works at all.
+    """
+    l1, l2, l3 = node_factory.line_graph(3, opts={'disable-mpp':None}, fundchannel=True, wait_for_announce=True)
+
+    # Payments below 100,000msat will never be split.
+    amount = Millisatoshi(80000)
+
+    flag = False
+    for i in range(5):
+        label = 'i{}'.format(i)
+
+        inv = l3.rpc.invoice(amount, label, 'desc')['bolt11']
+        l1.rpc.pay(inv)
+
+        received = only_one(l3.rpc.listinvoices(label)['invoices'])['msatoshi_received']
+        received = Millisatoshi(received)
+
+        if received > amount:
+            flag = True
+            break
+
+    # Randomization should have overpaid.
+    assert flag

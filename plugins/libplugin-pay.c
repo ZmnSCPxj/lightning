@@ -591,6 +591,8 @@ static void payment_getroute_add_excludes(struct payment *p,
 static void payment_getroute(struct payment *p)
 {
 	struct out_req *req;
+	paymod_log(p, LOG_DBG, "getroute: target amount: %s",
+		   type_to_string(tmpctx, struct amount_msat, &p->getroute->amount));
 	req = jsonrpc_request_start(p->plugin, NULL, "getroute",
 				    payment_getroute_result,
 				    payment_getroute_error, p);
@@ -1243,6 +1245,7 @@ static void payment_add_hop_onion_payload(struct payment *p,
 	struct tlv_field **fields;
 	struct payment *root = payment_root(p);
 	static struct short_channel_id all_zero_scid = {.u64 = 0};
+	struct amount_msat payee_amount;
 
 	/* This is the information of the node processing this payload, while
 	 * `next` are the instructions to include in the payload, which is
@@ -1277,9 +1280,14 @@ static void payment_add_hop_onion_payload(struct payment *p,
 
 		if (payment_secret != NULL) {
 			assert(final);
+			payee_amount = root->amount;
+			/* Handle overpayment if we are doing
+			 * amount fuzzing.  */
+			if (amount_msat_greater(node->amount, payee_amount))
+				payee_amount = node->amount;
 			tlvstream_set_tlv_payload_data(
 			    fields, payment_secret,
-			    root->amount.millisatoshis); /* Raw: TLV payload generation*/
+			    payee_amount.millisatoshis); /* Raw: TLV payload generation*/
 		}
 		break;
 	}
@@ -2497,15 +2505,28 @@ static struct command_result *shadow_route_listchannels(struct command *cmd,
 		if (!d->fuzz_amount)
 			goto next;
 
+		/* Add the best_fee as randomized overpayment.  */
+		if (!amount_msat_add(&p->getroute->amount,
+				     p->getroute->amount, best_fee))
+			paymod_err(p,
+				   "Could not update amount: "
+				   "amount %s, best fee %s",
+				   type_to_string(tmpctx, struct amount_msat,
+						  &p->getroute->amount),
+				   type_to_string(tmpctx, struct amount_msat,
+						  &best_fee));
+
 		/* Only try to apply the fee budget changes if we want to fuzz
 		 * the amount. Virtual fees that we then don't deliver to the
 		 * destination could otherwise cause the route to be too
 		 * expensive, while really being ok. If any of these fail then
-		 * the above checks are insufficient. */
+		 * the above checks are insufficient.
+		 *
+		 * We do not deduct from the payment constraints, since we
+		 * modify the getroute amount, not the actual payment amount.
+		 */
 		if (!amount_msat_sub(&d->constraints.fee_budget,
-				     d->constraints.fee_budget, best_fee) ||
-		    !amount_msat_sub(&p->constraints.fee_budget,
-				     p->constraints.fee_budget, best_fee))
+				     d->constraints.fee_budget, best_fee))
 			paymod_err(p,
 				   "Could not update fee constraints "
 				   "for shadow route extension. "

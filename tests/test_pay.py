@@ -3375,7 +3375,6 @@ def test_mpp_waitblockheight_routehint_conflict(node_factory, bitcoind, executor
     fut.result(TIMEOUT)
 
 
-@pytest.mark.xfail(strict=True)
 def test_pay_amount_randomize(node_factory):
     """ Tests if randomization of the payment works at all.
     """

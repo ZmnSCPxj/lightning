@@ -96,11 +96,18 @@ struct payment *payment_root(struct payment *p)
 	else
 		return payment_root(p->parent);
 }
+const struct payment *payment_croot(const struct payment *p)
+{
+	if (p->parent == NULL)
+		return p;
+	else
+		return payment_croot(p->parent);
+}
 
 static void
-paymod_log_header(struct payment *p, const char **type, u64 *id)
+paymod_log_header(const struct payment *p, const char **type, u64 *id)
 {
-	struct payment *root = payment_root(p);
+	const struct payment *root = payment_croot(p);
 	/* We prefer to show the command ID here since it is also known
 	 * by `lightningd`, so in theory it can be used to correlate
 	 * debugging logs between the main `lightningd` and whatever
@@ -117,8 +124,8 @@ paymod_log_header(struct payment *p, const char **type, u64 *id)
 	}
 }
 
-static void
-paymod_log(struct payment *p, enum log_level l, const char *fmt, ...)
+void
+paymod_log(const struct payment *p, enum log_level l, const char *fmt, ...)
 {
 	const char *type;
 	u64 id;
@@ -133,8 +140,7 @@ paymod_log(struct payment *p, enum log_level l, const char *fmt, ...)
 	plugin_log(p->plugin, l, "%s %"PRIu64" partid %"PRIu32": %s",
 		   type, id, p->partid, txt);
 }
-static void
-paymod_err(struct payment *p, const char *fmt, ...)
+void paymod_err(const struct payment *p, const char *fmt, ...)
 {
 	const char *type;
 	u64 id;

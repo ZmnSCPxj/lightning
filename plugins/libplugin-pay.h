@@ -425,6 +425,13 @@ void payment_set_step(struct payment *p, enum payment_step newstep);
 void payment_fail(struct payment *p, const char *fmt, ...) PRINTF_FMT(2,3);
 
 struct payment *payment_root(struct payment *p);
+/* Like `payment_root` but works on `const`.  */
+const struct payment *payment_croot(const struct payment *p);
 struct payment_tree_result payment_collect_result(struct payment *p);
+
+/* Paymods should use these for logs and failures.  */
+void
+paymod_log(const struct payment *p, enum log_level l, const char *fmt, ...);
+void paymod_err(const struct payment *p, const char *fmt, ...);
 
 #endif /* LIGHTNING_PLUGINS_LIBPLUGIN_PAY_H */

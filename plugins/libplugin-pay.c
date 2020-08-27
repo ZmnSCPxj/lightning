@@ -601,13 +601,11 @@ static const struct node_id *payment_get_excluded_nodes(const tal_t *ctx,
 
 /* Iterate through the channel_hints and exclude any channel that we are
  * confident will not be able to handle this payment. */
-static void payment_getroute_add_excludes(struct payment *p,
-					  struct json_stream *js)
+void payment_getroute_splice_excludes(struct payment *p,
+				      struct json_stream *js)
 {
 	const struct node_id *nodes;
 	const struct short_channel_id_dir *chans;
-
-	json_array_start(js, "exclude");
 
 	/* Collect and exclude all channels that are disabled or we know have
 	 * insufficient capacity. */
@@ -625,6 +623,13 @@ static void payment_getroute_add_excludes(struct payment *p,
 		for (size_t i = 0; i < tal_count(p->temp_exclusion); ++i)
 			json_add_string(js, NULL, p->temp_exclusion[i]);
 
+}
+
+static void payment_getroute_add_excludes(struct payment *p,
+					  struct json_stream *js)
+{
+	json_array_start(js, "exclude");
+	payment_getroute_splice_excludes(p, js);
 	json_array_end(js);
 }
 

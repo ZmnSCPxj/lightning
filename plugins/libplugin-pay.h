@@ -433,5 +433,8 @@ struct payment_tree_result payment_collect_result(struct payment *p);
 void
 paymod_log(const struct payment *p, enum log_level l, const char *fmt, ...);
 void paymod_err(const struct payment *p, const char *fmt, ...);
+/* Splice the exclusions into an array of exclusions being built.  */
+void payment_getroute_splice_excludes(struct payment *p,
+				      struct json_stream *js);
 
 #endif /* LIGHTNING_PLUGINS_LIBPLUGIN_PAY_H */

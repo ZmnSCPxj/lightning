@@ -16,6 +16,7 @@
 #include <common/pseudorand.h>
 #include <common/type_to_string.h>
 #include <inttypes.h>
+#include <plugins/libplugin-pathdiversity.h>
 #include <plugins/libplugin-pay.h>
 #include <plugins/libplugin.h>
 #include <stdint.h>
@@ -1938,6 +1939,9 @@ struct payment_modifier *paymod_mods[] = {
 	&waitblockheight_pay_mod,
 	&retry_pay_mod,
 	&adaptive_splitter_pay_mod,
+	/* The path-diversity paymod *must* be last, or at least must
+	 * operate after all things that does anything in INITIALIZED step.  */
+	&pathdiversity_pay_mod,
 	NULL,
 };
 

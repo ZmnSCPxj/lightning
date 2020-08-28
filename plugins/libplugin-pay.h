@@ -437,4 +437,10 @@ void paymod_err(const struct payment *p, const char *fmt, ...);
 void payment_getroute_splice_excludes(struct payment *p,
 				      struct json_stream *js);
 
+/* Exclude most expensive hops of the given route.  */
+void payment_exclude_most_expensive(struct payment *p,
+				    const struct route_hop *route);
+void payment_exclude_longest_delay(struct payment *p,
+				   const struct route_hop *route);
+
 #endif /* LIGHTNING_PLUGINS_LIBPLUGIN_PAY_H */

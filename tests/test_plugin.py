@@ -2465,3 +2465,26 @@ def test_custom_notification_topics(node_factory):
     # The plugin just dist what previously was a fatal mistake (emit
     # an unknown notification), make sure we didn't kill it.
     assert 'custom_notifications.py' in [p['name'] for p in l1.rpc.listconfigs()['plugins']]
+
+
+def test_getmanifest_developer_arg(node_factory):
+    """ Ensure that getmanifest includes a `developer` arg that
+    indicates whether we compiled with DEVELOPER=1 or not.
+    """
+    plugin = os.path.join(
+        os.path.dirname(__file__), "plugins", "developerarg.py"
+    )
+    l1, l2 = node_factory.get_nodes(2, opts={'plugin': plugin})
+
+    assert l1.rpc.call("getdeveloperflag")["developer"] == DEVELOPER
+    assert l2.rpc.call("getdeveloperflag")["developer"] == DEVELOPER
+
+    # Check that custommsg is properly hooked if DEVELOPER=1
+    # In DEVELOPER=0 the hook will not exist, and the plugin
+    # should not register it in that case.
+    if DEVELOPER:
+        l1.connect(l2)
+        l1.rpc.dev_sendcustommsg(l2.info['id'], 'B055')
+        l2.daemon.wait_for_log(
+            r"got custommsg"
+        )

@@ -1649,6 +1649,11 @@ const char *plugin_send_getmanifest(struct plugin *p)
 	req = jsonrpc_request_start(p, "getmanifest", p->log,
 				    NULL, plugin_manifest_cb, p);
 	json_add_bool(req->stream, "allow-deprecated-apis", deprecated_apis);
+#if DEVELOPER
+	json_add_bool(req->stream, "developer", true);
+#else /* DEVELOPER */
+	json_add_bool(req->stream, "developer", false);
+#endif /* !DEVELOPER */
 	jsonrpc_request_end(req);
 	plugin_request_send(p, req);
 	p->plugin_state = AWAITING_GETMANIFEST_RESPONSE;

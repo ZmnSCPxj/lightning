@@ -472,7 +472,8 @@ class Plugin(object):
     def add_hook(self, name: str, func: Callable[..., JSONType],
                  background: bool = False,
                  before: Optional[List[str]] = None,
-                 after: Optional[List[str]] = None) -> None:
+                 after: Optional[List[str]] = None,
+                 unhook_if_not_developer: bool = False) -> None:
         """Register a hook that is called synchronously by lightningd on events
         """
         if name in self.methods:
@@ -500,27 +501,32 @@ class Plugin(object):
         method.after = []
         if after:
             method.after = after
+        method.unhook_if_not_developer = unhook_if_not_developer
         self.methods[name] = method
 
     def hook(self, method_name: str,
              before: List[str] = None,
-             after: List[str] = None) -> JsonDecoratorType:
+             after: List[str] = None,
+             unhook_if_not_developer: bool = False) -> JsonDecoratorType:
         """Decorator to add a plugin hook to the dispatch table.
 
         Internally uses add_hook.
         """
         def decorator(f: Callable[..., JSONType]) -> Callable[..., JSONType]:
-            self.add_hook(method_name, f, background=False, before=before, after=after)
+            self.add_hook(method_name, f, background=False, before=before, after=after,
+                          unhook_if_not_developer=unhook_if_not_developer)
             return f
         return decorator
 
-    def async_hook(self, method_name: str) -> NoneDecoratorType:
+    def async_hook(self, method_name: str
+                   unhook_if_not_developer: bool = False) -> NoneDecoratorType:
         """Decorator to add an async plugin hook to the dispatch table.
 
         Internally uses add_hook.
         """
         def decorator(f: Callable[..., None]) -> Callable[..., None]:
-            self.add_hook(method_name, f, background=True)
+            self.add_hook(method_name, f, background=True,
+                          unhook_if_not_developer=unhook_if_not_developer)
             return f
         return decorator
 
@@ -842,6 +848,12 @@ class Plugin(object):
             # 0.9.0 and before didn't offer this, so assume "yes".
             self.deprecated_apis = True
 
+        if 'developer' in kwargs:
+            self.developer = kwargs['developer']
+        else:
+            # 0.10.0 and before did not offer this, so assume "no".
+            self.developer = False
+
         methods = []
         hooks = []
         for method in self.methods.values():
@@ -850,6 +862,8 @@ class Plugin(object):
                 continue
 
             if method.mtype == MethodType.HOOK:
+                if not self.developer and method.unhook_if_not_developer:
+                    continue
                 hooks.append({'name': method.name,
                               'before': method.before,
                               'after': method.after})
